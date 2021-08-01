@@ -13,7 +13,7 @@ defaultOuterTeeth = 7
 defaultClearance = 0.01
 defaultHeight = 10
 defaultOuterThickness = 5
-
+defaultShaftDiameter = 6
 
 # global set of event handlers to keep them referenced for the duration of
 # the command
@@ -77,10 +77,11 @@ class TrochoidCurve():
 
 
 class InnerGear():
-    def __init__(self, r, teeth, height) -> None:
+    def __init__(self, r, teeth, height, shaft_diameter) -> None:
         self.r = r
         self.teeth = teeth
         self.height = height
+        self.shaft_diameter = shaft_diameter
 
     def buildInnerGear(self):
         newComp = createNewComponent()
@@ -97,6 +98,9 @@ class InnerGear():
 
         # Draw the trochoid curve.
         TrochoidCurve(r=self.r, teeth=self.teeth).make_trochoid_curve(sketch)
+        center = adsk.core.Point3D.create(0, 0, 0)
+        sketch.sketchCurves.sketchCircles.addByCenterRadius(
+            center, self.shaft_diameter / 2)
 
         # Create an extrusion.
         extInput = newComp.features.extrudeFeatures.createInput(
@@ -147,18 +151,25 @@ class TrochoidPump():
         self.clearance = defaultClearance
         self.height = defaultHeight
         self.thickness = defaultOuterThickness
+        self.shaft_diameter = defaultShaftDiameter
 
     def buildTrochoidPump(self):
         inner_teeth = self.outer_teeth - 1
         tooth_h = self.outer_r / (2 * self.outer_teeth)
         inner_r = self.outer_r - 2 * (tooth_h + self.clearance)
 
-        innerGear = InnerGear(inner_r, inner_teeth, self.height)
+        innerGear = InnerGear(
+            inner_r,
+            inner_teeth,
+            self.height,
+            self.shaft_diameter,
+        )
         outerGear = OuterGear(
             self.outer_r,
             self.outer_teeth,
             self.height,
-            self.thickness)
+            self.thickness,
+        )
 
         innerGear.buildInnerGear()
         outerGear.buildOuterGear()
@@ -202,6 +213,8 @@ class MyCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 'clearance', 'clearance', 'mm', adsk.core.ValueInput.createByReal(defaultClearance / 10))
             inputs.addValueInput(
                 'outer_thickness', 'outer thickness', 'mm', adsk.core.ValueInput.createByReal(defaultOuterThickness / 10))
+            inputs.addValueInput(
+                'shaft_diameter', 'shaft_diameter', 'mm', adsk.core.ValueInput.createByReal(defaultShaftDiameter / 10))
 
         except BaseException:
             if ui:
@@ -235,8 +248,16 @@ class MyCommandExecuteHandler(adsk.core.CommandEventHandler):
             trochoidPump.height = unitsMgr.evaluateExpression(
                 input.expression, "mm")
 
+            input = inputs.itemById('clearance')
+            trochoidPump.clearance = unitsMgr.evaluateExpression(
+                input.expression, "mm")
+
             input = inputs.itemById('outer_thickness')
             trochoidPump.thickness = unitsMgr.evaluateExpression(
+                input.expression, "mm")
+
+            input = inputs.itemById('shaft_diameter')
+            trochoidPump.shaft_diameter = unitsMgr.evaluateExpression(
                 input.expression, "mm")
 
             trochoidPump.buildTrochoidPump()
